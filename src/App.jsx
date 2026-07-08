@@ -588,11 +588,6 @@ function Landing({ onSelect }) {
           <div className="w-px h-10 sm:h-12 bg-slate-200" />
           <img src={logoGeb} alt="Grupo Empresarial Bienestar" className="h-14 sm:h-16 w-auto" />
         </div>
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border mb-5" style={{ borderColor: BRAND.green }}>
-          <span className="text-xs font-bold tracking-wide" style={{ color: BRAND.green }}>
-            VIVO 47
-          </span>
-        </div>
         <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 leading-[1.05] mb-4" style={{ fontFamily: DISPLAY_FONT }}>
           Certificación de Rol,
           <br />
