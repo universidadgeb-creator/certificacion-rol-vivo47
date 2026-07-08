@@ -6,6 +6,8 @@ import {
 } from "lucide-react";
 import { doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
 import { db } from "./firebase.js";
+import logoGebUniversity from "./assets/logo-geb-university.jpeg";
+import logoGeb from "./assets/logo-geb.png";
 
 /* ============================================================
    DATOS: plantillas de certificación de rol — VIVO 47
@@ -310,6 +312,7 @@ function TopBar({ title, subtitle, onBack, right }) {
         >
           <ArrowLeft size={18} className="text-slate-600" />
         </button>
+        <img src={logoGebUniversity} alt="GEB University" className="h-7 w-auto shrink-0 hidden sm:block" />
         <div className="flex-1 min-w-0">
           <h1 className="text-base sm:text-lg font-bold text-slate-800 truncate" style={{ fontFamily: DISPLAY_FONT }}>
             {title}
@@ -580,9 +583,14 @@ function Landing({ onSelect }) {
   return (
     <div className="min-h-screen" style={{ background: `linear-gradient(180deg, ${BRAND.greenSoft} 0%, #ffffff 380px)` }}>
       <div className="max-w-3xl mx-auto px-6 pt-14 sm:pt-20 pb-8 text-center">
+        <div className="flex items-center justify-center gap-4 sm:gap-6 mb-6">
+          <img src={logoGebUniversity} alt="GEB University" className="h-14 sm:h-16 w-auto" />
+          <div className="w-px h-10 sm:h-12 bg-slate-200" />
+          <img src={logoGeb} alt="Grupo Empresarial Bienestar" className="h-14 sm:h-16 w-auto" />
+        </div>
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border mb-5" style={{ borderColor: BRAND.green }}>
           <span className="text-xs font-bold tracking-wide" style={{ color: BRAND.green }}>
-            VIVO 47 · GEB UNIVERSITY
+            VIVO 47
           </span>
         </div>
         <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 leading-[1.05] mb-4" style={{ fontFamily: DISPLAY_FONT }}>
