@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   Building2, Users, UserCircle2, ArrowLeft, Plus, Search, CheckCircle2,
   Circle, X, ClipboardList, MessageSquareText, BarChart3,
-  MapPin, Calendar, Info, Loader2, ChevronRight, Trash2, Save, ListChecks
+  MapPin, Calendar, Info, Loader2, ChevronRight, Trash2, Save, ListChecks, Download, Clock
 } from "lucide-react";
 import { doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
 import { db } from "./firebase.js";
@@ -644,6 +644,7 @@ function AdminPanel({ index, onBack, onRefresh }) {
   const [showNew, setShowNew] = useState(false);
   const [detailId, setDetailId] = useState(null);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
   const [filtros, setFiltros] = useState({ depto: "", rol: "", sucursal: "", estado: "" });
 
   const filtered = useMemo(() => {
@@ -670,6 +671,10 @@ function AdminPanel({ index, onBack, onRefresh }) {
     return <RoleTemplatesPanel onBack={() => setShowTemplates(false)} />;
   }
 
+  if (showAnalytics) {
+    return <AnalyticsPanel index={index} onBack={() => setShowAnalytics(false)} />;
+  }
+
   if (detailId) {
     return (
       <AdminCertDetail
@@ -692,6 +697,12 @@ function AdminPanel({ index, onBack, onRefresh }) {
         onBack={onBack}
         right={
           <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setShowAnalytics(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50"
+            >
+              <BarChart3 size={16} /> <span className="hidden xs:inline">Analítica</span>
+            </button>
             <button
               onClick={() => setShowTemplates(true)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50"
@@ -1540,6 +1551,219 @@ function RoleTemplatesPanel({ onBack }) {
 }
 
 /* ============================================================
+   ANALÍTICA
+   ============================================================ */
+const ESTADO_LABEL = { certificado: "Certificado", en_progreso: "En progreso", sin_iniciar: "Sin iniciar" };
+
+function groupStats(items, keyFn, labelFn) {
+  const map = new Map();
+  items.forEach((c) => {
+    const key = keyFn(c);
+    if (!key) return;
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        label: labelFn ? labelFn(c) : key,
+        total: 0,
+        certificado: 0,
+        en_progreso: 0,
+        sin_iniciar: 0,
+        pctSum: 0,
+      });
+    }
+    const g = map.get(key);
+    g.total++;
+    g[c.estado] = (g[c.estado] || 0) + 1;
+    g.pctSum += c.pct || 0;
+  });
+  return Array.from(map.values())
+    .map((g) => ({ ...g, avgPct: g.total ? Math.round(g.pctSum / g.total) : 0 }))
+    .sort((a, b) => a.avgPct - b.avgPct);
+}
+
+function daysBetween(isoA, isoB) {
+  const diff = new Date(isoB) - new Date(isoA);
+  return Math.max(0, Math.round(diff / 86400000));
+}
+
+function csvEscape(v) {
+  const s = v == null ? "" : String(v);
+  return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function exportIndexToCsv(index) {
+  const headers = [
+    "Colaborador", "Rol", "Departamento", "Sucursal", "Líder", "Estado",
+    "Avance %", "Fecha inicio", "Fecha certificado", "Última actualización",
+  ];
+  const rows = index.map((c) => [
+    c.colaborador,
+    c.rol,
+    c.departamento,
+    c.sucursal,
+    c.lider || "",
+    ESTADO_LABEL[c.estado] || c.estado,
+    c.pct ?? 0,
+    fmtDate(c.fechaInicio),
+    c.fechaCertificado ? fmtDate(c.fechaCertificado) : "",
+    c.actualizadoEn ? fmtDate(c.actualizadoEn.slice(0, 10)) : "",
+  ]);
+  const csv = [headers, ...rows].map((r) => r.map(csvEscape).join(",")).join("\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `certificaciones_vivo47_${todayISO()}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function MiniBar({ pct, color }) {
+  return (
+    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+      <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color || BRAND.green }} />
+    </div>
+  );
+}
+
+function GroupStatsTable({ rows }) {
+  if (rows.length === 0) return <p className="text-xs text-slate-400 px-1">Sin datos todavía.</p>;
+  return (
+    <div className="space-y-2">
+      {rows.map((g) => (
+        <div key={g.key} className="bg-white border border-slate-200 rounded-xl p-3.5">
+          <div className="flex items-center justify-between mb-1.5 gap-2">
+            <span className="text-sm font-semibold text-slate-800 truncate">{g.label}</span>
+            <span className="text-xs text-slate-400 shrink-0">
+              {g.total} colaborador{g.total === 1 ? "" : "es"} · {g.avgPct}% prom.
+            </span>
+          </div>
+          <MiniBar pct={g.avgPct} color={g.avgPct >= 80 ? BRAND.green : g.avgPct >= 40 ? "#C98A1B" : "#B0483F"} />
+          <div className="flex gap-3 mt-1.5 text-[11px] text-slate-400">
+            <span>{g.certificado || 0} certificados</span>
+            <span>{g.en_progreso || 0} en progreso</span>
+            <span>{g.sin_iniciar || 0} sin iniciar</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AnalyticsPanel({ index, onBack }) {
+  const [dimension, setDimension] = useState("sucursal");
+
+  const grouped = useMemo(() => {
+    if (dimension === "sucursal") return groupStats(index, (c) => c.sucursal, (c) => c.sucursal);
+    if (dimension === "departamento") return groupStats(index, (c) => c.departamento, (c) => c.departamento);
+    if (dimension === "rol") return groupStats(index, (c) => c.rol, (c) => c.rol);
+    return groupStats(
+      index,
+      (c) => (c.lider && c.lider.trim() ? normaliza(c.lider.trim()) : null),
+      (c) => c.lider.trim()
+    );
+  }, [index, dimension]);
+
+  const tiempos = useMemo(() => {
+    const completados = index.filter((c) => c.estado === "certificado" && c.fechaCertificado && c.fechaInicio);
+    if (completados.length === 0) return null;
+    const dias = completados.map((c) => daysBetween(c.fechaInicio, c.fechaCertificado));
+    const promedio = Math.round(dias.reduce((a, b) => a + b, 0) / dias.length);
+    const porRol = groupStats(completados, (c) => c.rol, (c) => c.rol).map((g) => {
+      const delRol = completados.filter((c) => c.rol === g.key);
+      const diasRol = delRol.map((c) => daysBetween(c.fechaInicio, c.fechaCertificado));
+      return { rol: g.key, promedio: Math.round(diasRol.reduce((a, b) => a + b, 0) / diasRol.length), n: delRol.length };
+    });
+    porRol.sort((a, b) => b.promedio - a.promedio);
+    return { promedio, total: completados.length, porRol };
+  }, [index]);
+
+  const totalConFecha = index.filter((c) => c.fechaCertificado).length;
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <TopBar
+        title="Analítica"
+        subtitle="Comparativos y tiempos de certificación"
+        onBack={onBack}
+        right={
+          <button
+            onClick={() => exportIndexToCsv(index)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 shrink-0"
+          >
+            <Download size={15} /> <span className="hidden xs:inline">Exportar a Excel</span>
+          </button>
+        }
+      />
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
+        <div className="flex items-center gap-1.5 mb-3 px-1">
+          <BarChart3 size={14} className="text-slate-400" />
+          <span className="text-xs font-bold uppercase tracking-wide text-slate-400">Avance comparado</span>
+        </div>
+        <div className="flex flex-wrap gap-2 mb-4">
+          {[
+            ["sucursal", "Sucursal"],
+            ["departamento", "Departamento"],
+            ["rol", "Rol"],
+            ["lider", "Líder"],
+          ].map(([v, label]) => (
+            <button
+              key={v}
+              onClick={() => setDimension(v)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                dimension === v ? "text-white border-transparent" : "text-slate-600 border-slate-200 hover:bg-slate-50"
+              }`}
+              style={dimension === v ? { backgroundColor: BRAND.green } : undefined}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <GroupStatsTable rows={grouped} />
+
+        <div className="flex items-center gap-1.5 mb-3 px-1 mt-8">
+          <Clock size={14} className="text-slate-400" />
+          <span className="text-xs font-bold uppercase tracking-wide text-slate-400">Tiempos de certificación</span>
+        </div>
+        {!tiempos ? (
+          <EmptyState
+            icon={Clock}
+            title="Aún no hay datos suficientes"
+            subtitle="Esta métrica se calcula a partir de certificaciones completadas después de activar este seguimiento. Los colaboradores ya certificados antes no cuentan con fecha registrada."
+          />
+        ) : (
+          <>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 mb-3">
+              <p className="text-2xl font-bold" style={{ color: BRAND.green, fontFamily: DISPLAY_FONT }}>
+                {tiempos.promedio} días
+              </p>
+              <p className="text-xs text-slate-500">
+                Promedio para certificarse, sobre {tiempos.total} colaborador{tiempos.total === 1 ? "" : "es"}
+                {totalConFecha < index.filter((c) => c.estado === "certificado").length
+                  ? " (algunos certificados antes no cuentan con fecha registrada)"
+                  : ""}
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              {tiempos.porRol.map((r) => (
+                <div key={r.rol} className="flex items-center justify-between bg-white border border-slate-200 rounded-lg px-3.5 py-2.5">
+                  <span className="text-sm text-slate-700 truncate">{r.rol}</span>
+                  <span className="text-xs text-slate-400 shrink-0">
+                    {r.promedio} días · {r.n} colaborador{r.n === 1 ? "" : "es"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
    LIDER
    ============================================================ */
 function LiderPanel({ index, onBack, onIndexChange }) {
@@ -1750,9 +1974,12 @@ function FillCertView({ id, liderNombre, onBack, onIndexChange }) {
   const { pct, estado } = cert && roleTpl ? computeStatus(cert, roleTpl) : { pct: 0, estado: "sin_iniciar" };
 
   async function persist(updatedCert) {
+    const { pct: newPct, estado: newEstado } = computeStatus(updatedCert, CERT_DATA.roles[updatedCert.rol]);
+    if (newEstado === "certificado" && !updatedCert.fechaCertificado) {
+      updatedCert = { ...updatedCert, fechaCertificado: todayISO() };
+    }
     setCert(updatedCert);
     await storageSetCert(updatedCert);
-    const { pct: newPct, estado: newEstado } = computeStatus(updatedCert, CERT_DATA.roles[updatedCert.rol]);
     const idx = await storageGetIndex();
     const i = idx.findIndex((x) => x.id === updatedCert.id);
     if (i >= 0) {
@@ -1762,6 +1989,7 @@ function FillCertView({ id, liderNombre, onBack, onIndexChange }) {
         pct: newPct,
         actualizadoEn: new Date().toISOString(),
         lider: updatedCert.lider || idx[i].lider,
+        fechaCertificado: updatedCert.fechaCertificado || idx[i].fechaCertificado,
       };
       await storageSetIndex(idx);
       onIndexChange(idx);
