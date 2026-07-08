@@ -604,7 +604,7 @@ function Landing({ onSelect }) {
         />
         <RoleCard
           icon={Users}
-          title="Líder"
+          title="Certificador"
           desc="Certifica a tu equipo marcando actividades semana por semana."
           onClick={() => onSelect("lider")}
         />
@@ -939,11 +939,11 @@ function NewCertModal({ onClose, onCreated }) {
               />
             </Field>
           </div>
-          <Field label="Líder que certificará (opcional)">
+          <Field label="Certificador (opcional)">
             <input
               value={lider}
               onChange={(e) => setLider(e.target.value)}
-              placeholder="Nombre del líder"
+              placeholder="Nombre del certificador"
               className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
             />
           </Field>
@@ -1100,11 +1100,11 @@ function EditCertModal({ cert, onClose, onSaved }) {
               />
             </Field>
           </div>
-          <Field label="Líder que certificará (opcional)">
+          <Field label="Certificador (opcional)">
             <input
               value={lider}
               onChange={(e) => setLider(e.target.value)}
-              placeholder="Nombre del líder"
+              placeholder="Nombre del certificador"
               className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
             />
           </Field>
@@ -1184,7 +1184,7 @@ function AdminCertDetail({ id, onBack, onDeleted, onUpdated }) {
           <div className="flex flex-wrap items-center justify-between gap-2 mt-3">
             <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-slate-500">
               <span className="flex items-center gap-1">
-                <Users size={12} /> Líder: <b className="text-slate-700">{cert.lider || "—"}</b>
+                <Users size={12} /> Certificador: <b className="text-slate-700">{cert.lider || "—"}</b>
               </span>
               <span className="flex items-center gap-1">
                 <Calendar size={12} /> Inicio: <b className="text-slate-700">{fmtDate(cert.fechaInicio)}</b>
@@ -1593,7 +1593,7 @@ function csvEscape(v) {
 
 function exportIndexToCsv(index) {
   const headers = [
-    "Colaborador", "Rol", "Departamento", "Sucursal", "Líder", "Estado",
+    "Colaborador", "Rol", "Departamento", "Sucursal", "Certificador", "Estado",
     "Avance %", "Fecha inicio", "Fecha certificado", "Última actualización",
   ];
   const rows = index.map((c) => [
@@ -1707,7 +1707,7 @@ function AnalyticsPanel({ index, onBack }) {
             ["sucursal", "Sucursal"],
             ["departamento", "Departamento"],
             ["rol", "Rol"],
-            ["lider", "Líder"],
+            ["lider", "Certificador"],
           ].map(([v, label]) => (
             <button
               key={v}
@@ -1833,7 +1833,7 @@ function LiderSearch({ index, liderNombre, onBack, onSelect, onChangeName }) {
     <div className="min-h-screen bg-slate-50">
       <TopBar
         title="Certificar colaborador"
-        subtitle={`Líder: ${liderNombre}`}
+        subtitle={`Certificador: ${liderNombre}`}
         onBack={onBack}
         right={
           <button onClick={onChangeName} className="text-xs font-semibold text-slate-500 hover:text-slate-700 shrink-0">
@@ -1877,7 +1877,7 @@ function LiderSearch({ index, liderNombre, onBack, onSelect, onChangeName }) {
             title={equipo.length === 0 ? "Aún no tienes colaboradores asignados" : "Sin coincidencias"}
             subtitle={
               equipo.length === 0
-                ? "Pide al administrador que te asigne como líder en la certificación de tu equipo."
+                ? "Pide al administrador que te asigne como certificador en la certificación de tu equipo."
                 : "Verifica el nombre o ajusta los filtros."
             }
           />
@@ -2160,7 +2160,7 @@ function ColabSearch({ index, nombre, onBack, onSelect, onChangeName }) {
           <EmptyState
             icon={Search}
             title="No encontramos tu certificación"
-            subtitle="Verifica que tu nombre esté escrito igual que en el registro, o consulta con tu líder."
+            subtitle="Verifica que tu nombre esté escrito igual que en el registro, o consulta con tu certificador."
           />
         ) : (
           <div className="space-y-2">
@@ -2265,8 +2265,8 @@ function ColabCertView({ id, onBack, onIndexChange }) {
         {tab === "autoeval" && (
           <div className="space-y-3">
             <p className="text-xs text-slate-500 px-1 mb-1">
-              Cuéntanos qué tan preparado te sientes en cada proceso. Esto ayuda a tu líder y a GEB University a dar mejor
-              seguimiento — no sustituye tu certificación con tu líder.
+              Cuéntanos qué tan preparado te sientes en cada proceso. Esto ayuda a tu certificador y a GEB University a dar mejor
+              seguimiento — no sustituye tu certificación con tu certificador.
             </p>
             {roleTpl.procesos.map((p) => (
               <div key={p.idx} className="bg-white border border-slate-200 rounded-xl p-4">
