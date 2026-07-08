@@ -815,8 +815,10 @@ function NewCertModal({ onClose, onCreated }) {
   const [depto, setDepto] = useState("");
   const [rol, setRol] = useState("");
   const [colaborador, setColaborador] = useState("");
+  const [colaboradorEmail, setColaboradorEmail] = useState("");
   const [sucursal, setSucursal] = useState("");
   const [lider, setLider] = useState("");
+  const [certificadorEmail, setCertificadorEmail] = useState("");
   const [fecha, setFecha] = useState(todayISO());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -835,10 +837,12 @@ function NewCertModal({ onClose, onCreated }) {
     const cert = {
       id,
       colaborador: colaborador.trim(),
+      colaboradorEmail: colaboradorEmail.trim(),
       rol,
       departamento: depto,
       sucursal,
       lider: lider.trim(),
+      certificadorEmail: certificadorEmail.trim(),
       fechaInicio: fecha,
       creadoEn: nowIso,
       checklist: {},
@@ -849,10 +853,12 @@ function NewCertModal({ onClose, onCreated }) {
     idx.push({
       id,
       colaborador: cert.colaborador,
+      colaboradorEmail: cert.colaboradorEmail,
       rol,
       departamento: depto,
       sucursal,
       lider: cert.lider,
+      certificadorEmail: cert.certificadorEmail,
       fechaInicio: fecha,
       estado: "sin_iniciar",
       pct: 0,
@@ -918,6 +924,15 @@ function NewCertModal({ onClose, onCreated }) {
               className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
             />
           </Field>
+          <Field label="Correo del colaborador (opcional)">
+            <input
+              type="email"
+              value={colaboradorEmail}
+              onChange={(e) => setColaboradorEmail(e.target.value)}
+              placeholder="para recordatorios de autoevaluación"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+            />
+          </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Sucursal">
               <select
@@ -950,6 +965,15 @@ function NewCertModal({ onClose, onCreated }) {
               className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
             />
           </Field>
+          <Field label="Correo del certificador (opcional)">
+            <input
+              type="email"
+              value={certificadorEmail}
+              onChange={(e) => setCertificadorEmail(e.target.value)}
+              placeholder="para recordatorios semanales"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+            />
+          </Field>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button
             type="submit"
@@ -970,8 +994,10 @@ function EditCertModal({ cert, onClose, onSaved }) {
   const [depto, setDepto] = useState(cert.departamento);
   const [rol, setRol] = useState(cert.rol);
   const [colaborador, setColaborador] = useState(cert.colaborador);
+  const [colaboradorEmail, setColaboradorEmail] = useState(cert.colaboradorEmail || "");
   const [sucursal, setSucursal] = useState(cert.sucursal);
   const [lider, setLider] = useState(cert.lider || "");
+  const [certificadorEmail, setCertificadorEmail] = useState(cert.certificadorEmail || "");
   const [fecha, setFecha] = useState(cert.fechaInicio || todayISO());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -989,10 +1015,12 @@ function EditCertModal({ cert, onClose, onSaved }) {
     const updatedCert = {
       ...cert,
       colaborador: colaborador.trim(),
+      colaboradorEmail: colaboradorEmail.trim(),
       rol,
       departamento: depto,
       sucursal,
       lider: lider.trim(),
+      certificadorEmail: certificadorEmail.trim(),
       fechaInicio: fecha,
       ...(rolChanged ? { checklist: {}, autoeval: { confianza: {}, reflexion: {} } } : {}),
     };
@@ -1004,10 +1032,12 @@ function EditCertModal({ cert, onClose, onSaved }) {
       idx[i] = {
         ...idx[i],
         colaborador: updatedCert.colaborador,
+        colaboradorEmail: updatedCert.colaboradorEmail,
         rol,
         departamento: depto,
         sucursal,
         lider: updatedCert.lider,
+        certificadorEmail: updatedCert.certificadorEmail,
         fechaInicio: fecha,
         estado,
         pct,
@@ -1079,6 +1109,15 @@ function EditCertModal({ cert, onClose, onSaved }) {
               className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
             />
           </Field>
+          <Field label="Correo del colaborador (opcional)">
+            <input
+              type="email"
+              value={colaboradorEmail}
+              onChange={(e) => setColaboradorEmail(e.target.value)}
+              placeholder="para recordatorios de autoevaluación"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+            />
+          </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Sucursal">
               <select
@@ -1108,6 +1147,15 @@ function EditCertModal({ cert, onClose, onSaved }) {
               value={lider}
               onChange={(e) => setLider(e.target.value)}
               placeholder="Nombre del certificador"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+            />
+          </Field>
+          <Field label="Correo del certificador (opcional)">
+            <input
+              type="email"
+              value={certificadorEmail}
+              onChange={(e) => setCertificadorEmail(e.target.value)}
+              placeholder="para recordatorios semanales"
               className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
             />
           </Field>
