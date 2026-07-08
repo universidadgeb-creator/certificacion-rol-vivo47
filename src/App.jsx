@@ -1961,6 +1961,31 @@ function ProcesoCard({ proceso, entry, onToggle, onObsChange }) {
   );
 }
 
+function SemanaHeader({ semana, procesos, cert }) {
+  const completos = procesos.filter((p) => procesoCompleto(cert, p)).length;
+  const total = procesos.length;
+  const full = completos === total;
+  const some = completos > 0 && !full;
+  const bg = full ? BRAND.greenSoft : some ? "#FCF3E3" : "#F1F5F9";
+  const fg = full ? BRAND.greenDark : some ? "#8A5A12" : "#475569";
+  return (
+    <div
+      className="flex items-center justify-between gap-3 rounded-xl px-4 py-3 mb-3"
+      style={{ backgroundColor: bg }}
+    >
+      <div className="flex items-center gap-2">
+        {full && <CheckCircle2 size={18} style={{ color: fg }} />}
+        <h3 className="text-base font-extrabold" style={{ color: fg, fontFamily: DISPLAY_FONT }}>
+          {semana}
+        </h3>
+      </div>
+      <span className="text-xs font-bold shrink-0" style={{ color: fg }}>
+        {completos}/{total} procesos {full ? "· completa ✓" : ""}
+      </span>
+    </div>
+  );
+}
+
 function FillCertView({ id, liderNombre, onBack, onIndexChange }) {
   const [cert, setCert] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -2092,10 +2117,8 @@ function FillCertView({ id, liderNombre, onBack, onIndexChange }) {
         </div>
 
         {grupos.map((procesos, gi) => (
-          <div key={gi} className="mb-6">
-            {hasSemanas && (
-              <h3 className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2 px-1">{procesos[0].semana}</h3>
-            )}
+          <div key={gi} className="mb-8">
+            {hasSemanas && <SemanaHeader semana={procesos[0].semana} procesos={procesos} cert={cert} />}
             <div className="space-y-3">
               {procesos.map((p) => (
                 <ProcesoCard
@@ -2107,6 +2130,15 @@ function FillCertView({ id, liderNombre, onBack, onIndexChange }) {
                 />
               ))}
             </div>
+            {hasSemanas && gi < grupos.length - 1 && (
+              <div className="flex items-center gap-2 mt-5 px-1">
+                <div className="flex-1 h-px bg-slate-200" />
+                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide shrink-0">
+                  Fin de {procesos[0].semana} · sigue {grupos[gi + 1][0].semana}
+                </span>
+                <div className="flex-1 h-px bg-slate-200" />
+              </div>
+            )}
           </div>
         ))}
       </div>
