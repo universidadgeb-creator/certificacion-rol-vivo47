@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
 import { db } from "./firebase.js";
-import logoGebUniversity from "./assets/logo-geb-university.jpeg";
+import logoGebUniversity from "./assets/logo-geb-university.png";
 import logoGeb from "./assets/logo-geb.png";
 
 /* ============================================================
