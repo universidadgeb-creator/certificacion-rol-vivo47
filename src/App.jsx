@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   Building2, Users, UserCircle2, ArrowLeft, Plus, Search, CheckCircle2,
   Circle, X, ClipboardList, MessageSquareText, BarChart3,
-  MapPin, Calendar, Info, Loader2, ChevronRight, Trash2, Save, ListChecks, Download, Clock
+  MapPin, Calendar, Info, Loader2, ChevronRight, Trash2, Save, ListChecks, Download, Clock, AlertTriangle
 } from "lucide-react";
 import { doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
 import { db } from "./firebase.js";
@@ -108,6 +108,26 @@ function procesoCompleto(cert, proceso) {
   const entry = cert.checklist ? cert.checklist[proceso.idx] : null;
   if (!entry || !entry.checks) return false;
   return proceso.actividades.every((_, i) => entry.checks[i]);
+}
+
+/* ---------------- al día / atrasado ----------------
+   La certificación está pensada para 4 semanas (~28 días). Comparamos
+   el avance real (pct) contra el avance esperado según los días
+   transcurridos desde fechaInicio, con un margen de tolerancia. */
+const CERT_DURACION_DIAS = 28;
+const CERT_TOLERANCIA_PCT = 10;
+function diasDesde(iso) {
+  if (!iso) return 0;
+  const inicio = new Date(iso + "T00:00:00");
+  const hoy = new Date(todayISO() + "T00:00:00");
+  return Math.max(0, Math.round((hoy - inicio) / 86400000));
+}
+function avanceEsperado(fechaInicio) {
+  return Math.min(100, Math.round((diasDesde(fechaInicio) / CERT_DURACION_DIAS) * 100));
+}
+function estaAtrasado(c) {
+  if (!c.fechaInicio || c.estado === "certificado") return false;
+  return c.pct < avanceEsperado(c.fechaInicio) - CERT_TOLERANCIA_PCT;
 }
 
 /* ---------------- almacenamiento (Firestore) ----------------
@@ -357,6 +377,20 @@ function FiltroSelect({ value, onChange, placeholder, options, labeled }) {
   );
 }
 
+function AlDiaBadge({ c }) {
+  if (!c.fechaInicio || c.estado === "certificado") return null;
+  const atrasado = estaAtrasado(c);
+  return (
+    <span
+      className={`hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap ${
+        atrasado ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600"
+      }`}
+    >
+      {atrasado ? "Atrasado" : "Al día"}
+    </span>
+  );
+}
+
 function CertRow({ c, onClick }) {
   return (
     <button
@@ -381,6 +415,7 @@ function CertRow({ c, onClick }) {
       <div className="hidden md:block w-28 shrink-0">
         <ProgressBar pct={c.pct} />
       </div>
+      <AlDiaBadge c={c} />
       <EstadoBadge estado={c.estado} pct={c.pct} />
       <ChevronRight size={18} className="text-slate-300 shrink-0 hidden sm:block" />
     </button>
@@ -1619,6 +1654,7 @@ function groupStats(items, keyFn, labelFn) {
         certificado: 0,
         en_progreso: 0,
         sin_iniciar: 0,
+        atrasados: 0,
         pctSum: 0,
       });
     }
@@ -1626,6 +1662,7 @@ function groupStats(items, keyFn, labelFn) {
     g.total++;
     g[c.estado] = (g[c.estado] || 0) + 1;
     g.pctSum += c.pct || 0;
+    if (estaAtrasado(c)) g.atrasados++;
   });
   return Array.from(map.values())
     .map((g) => ({ ...g, avgPct: g.total ? Math.round(g.pctSum / g.total) : 0 }))
@@ -1692,10 +1729,11 @@ function GroupStatsTable({ rows }) {
             </span>
           </div>
           <MiniBar pct={g.avgPct} color={g.avgPct >= 80 ? BRAND.green : g.avgPct >= 40 ? "#C98A1B" : "#B0483F"} />
-          <div className="flex gap-3 mt-1.5 text-[11px] text-slate-400">
+          <div className="flex gap-3 mt-1.5 text-[11px] text-slate-400 flex-wrap">
             <span>{g.certificado || 0} certificados</span>
             <span>{g.en_progreso || 0} en progreso</span>
             <span>{g.sin_iniciar || 0} sin iniciar</span>
+            {g.atrasados > 0 && <span className="text-red-500 font-semibold">{g.atrasados} atrasado{g.atrasados === 1 ? "" : "s"}</span>}
           </div>
         </div>
       ))}
@@ -1733,6 +1771,15 @@ function AnalyticsPanel({ index, onBack }) {
 
   const totalConFecha = index.filter((c) => c.fechaCertificado).length;
 
+  const atrasados = useMemo(() => {
+    return index
+      .filter((c) => estaAtrasado(c))
+      .map((c) => ({ ...c, esperado: avanceEsperado(c.fechaInicio) }))
+      .sort((a, b) => b.esperado - b.pct - (a.esperado - a.pct));
+  }, [index]);
+  const enCurso = index.filter((c) => c.estado !== "certificado").length;
+  const alDia = enCurso - atrasados.length;
+
   return (
     <div className="min-h-screen bg-slate-50">
       <TopBar
@@ -1749,6 +1796,31 @@ function AnalyticsPanel({ index, onBack }) {
         }
       />
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
+        <div className="flex items-center gap-1.5 mb-3 px-1">
+          <AlertTriangle size={14} className="text-slate-400" />
+          <span className="text-xs font-bold uppercase tracking-wide text-slate-400">Al día / Atrasados</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <StatCard label="Al día" value={alDia} color={BRAND.green} />
+          <StatCard label="Atrasados" value={atrasados.length} color="#B0483F" />
+        </div>
+        {atrasados.length > 0 && (
+          <div className="space-y-1.5 mb-8">
+            {atrasados.map((c) => (
+              <div key={c.id} className="bg-white border border-red-100 rounded-lg px-3.5 py-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-slate-800 truncate">{c.colaborador}</span>
+                  <span className="text-xs font-bold text-red-500 shrink-0">{c.pct}% de {c.esperado}% esperado</span>
+                </div>
+                <div className="text-[11px] text-slate-400 truncate">
+                  {c.rol} · {c.sucursal}
+                  {c.lider ? ` · Certificador: ${c.lider}` : ""}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="flex items-center gap-1.5 mb-3 px-1">
           <BarChart3 size={14} className="text-slate-400" />
           <span className="text-xs font-bold uppercase tracking-wide text-slate-400">Avance comparado</span>
