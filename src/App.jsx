@@ -109,6 +109,18 @@ function procesoCompleto(cert, proceso) {
   if (!entry || !entry.checks) return false;
   return proceso.actividades.every((_, i) => entry.checks[i]);
 }
+function semanaActual(roleTpl, cert) {
+  const semanas = [];
+  roleTpl.procesos.forEach((p) => {
+    if (p.semana && !semanas.includes(p.semana)) semanas.push(p.semana);
+  });
+  for (const sem of semanas) {
+    const procesosSem = roleTpl.procesos.filter((p) => p.semana === sem);
+    const completos = procesosSem.filter((p) => procesoCompleto(cert, p)).length;
+    if (completos < procesosSem.length) return sem;
+  }
+  return semanas[semanas.length - 1] || "";
+}
 
 /* ---------------- al día / atrasado ----------------
    La certificación está pensada para 4 semanas (~28 días). Comparamos
@@ -209,6 +221,29 @@ async function loadCertData() {
 async function saveCertData(nextData) {
   CERT_DATA = nextData;
   await kvSet(CERT_DATA_KEY, nextData);
+}
+
+/* ---------------- comentarios de mejora ---------------- */
+const FEEDBACK_KEY = "geb_feedback_v1";
+async function feedbackGetAll() {
+  try {
+    const list = await kvGet(FEEDBACK_KEY);
+    return list || [];
+  } catch (e) {
+    return [];
+  }
+}
+async function feedbackAdd(item) {
+  const list = await feedbackGetAll();
+  list.unshift(item);
+  await kvSet(FEEDBACK_KEY, list);
+  return list;
+}
+async function feedbackSetAtendido(id, atendido) {
+  const list = await feedbackGetAll();
+  const next = list.map((f) => (f.id === id ? { ...f, atendido } : f));
+  await kvSet(FEEDBACK_KEY, next);
+  return next;
 }
 
 function useFonts() {
@@ -683,6 +718,7 @@ function AdminPanel({ index, onBack, onRefresh }) {
   const [detailId, setDetailId] = useState(null);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
   const [filtros, setFiltros] = useState({ depto: "", rol: "", sucursal: "", estado: "" });
 
   const filtered = useMemo(() => {
@@ -711,6 +747,10 @@ function AdminPanel({ index, onBack, onRefresh }) {
 
   if (showAnalytics) {
     return <AnalyticsPanel index={index} onBack={() => setShowAnalytics(false)} />;
+  }
+
+  if (showFeedback) {
+    return <FeedbackPanel onBack={() => setShowFeedback(false)} />;
   }
 
   if (detailId) {
@@ -746,6 +786,12 @@ function AdminPanel({ index, onBack, onRefresh }) {
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50"
             >
               <ListChecks size={16} /> <span className="hidden xs:inline">Plantillas</span>
+            </button>
+            <button
+              onClick={() => setShowFeedback(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50"
+            >
+              <MessageSquareText size={16} /> <span className="hidden xs:inline">Comentarios</span>
             </button>
             <button
               onClick={() => setShowNew(true)}
@@ -1887,6 +1933,109 @@ function AnalyticsPanel({ index, onBack }) {
 }
 
 /* ============================================================
+   COMENTARIOS DE MEJORA (feedback de certificadores)
+   ============================================================ */
+function FeedbackPanel({ onBack }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [soloPendientes, setSoloPendientes] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    feedbackGetAll().then((list) => {
+      if (active) {
+        setItems(list.slice().sort((a, b) => (b.fecha || "").localeCompare(a.fecha || "")));
+        setLoading(false);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function toggleAtendido(item) {
+    const next = await feedbackSetAtendido(item.id, !item.atendido);
+    setItems(next.slice().sort((a, b) => (b.fecha || "").localeCompare(a.fecha || "")));
+  }
+
+  const visibles = soloPendientes ? items.filter((f) => !f.atendido) : items;
+  const pendientesCount = items.filter((f) => !f.atendido).length;
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <TopBar title="Comentarios de mejora" subtitle="Sugerencias de los certificadores sobre formato y contenido" onBack={onBack} />
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
+        <div className="flex flex-wrap gap-2 mb-4">
+          <button
+            onClick={() => setSoloPendientes(true)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+              soloPendientes ? "text-white border-transparent" : "text-slate-600 border-slate-200 hover:bg-slate-50"
+            }`}
+            style={soloPendientes ? { backgroundColor: BRAND.green } : undefined}
+          >
+            Pendientes ({pendientesCount})
+          </button>
+          <button
+            onClick={() => setSoloPendientes(false)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+              !soloPendientes ? "text-white border-transparent" : "text-slate-600 border-slate-200 hover:bg-slate-50"
+            }`}
+            style={!soloPendientes ? { backgroundColor: BRAND.green } : undefined}
+          >
+            Todos ({items.length})
+          </button>
+        </div>
+
+        {loading ? (
+          <LoadingScreen />
+        ) : visibles.length === 0 ? (
+          <EmptyState
+            icon={MessageSquareText}
+            title={soloPendientes ? "No hay comentarios pendientes" : "Aún no hay comentarios"}
+            subtitle={
+              soloPendientes
+                ? "Los certificadores pueden dejar sugerencias mientras certifican a su equipo."
+                : "Cuando un certificador deje un comentario de mejora, aparecerá aquí."
+            }
+          />
+        ) : (
+          <div className="space-y-2.5">
+            {visibles.map((f) => (
+              <div
+                key={f.id}
+                className={`bg-white border rounded-xl p-4 ${f.atendido ? "border-slate-200 opacity-60" : "border-slate-200"}`}
+              >
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <span className="text-sm font-bold text-slate-800" style={{ fontFamily: DISPLAY_FONT }}>
+                    {f.rol}
+                  </span>
+                  <span className="text-[11px] text-slate-400 shrink-0">{fmtDate(f.fecha)}</span>
+                </div>
+                <p className="text-sm text-slate-700 mb-2">{f.comentario}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] text-slate-400">
+                    {f.certificador || "Anónimo"}
+                    {f.semana ? ` · ${f.semana}` : ""}
+                    {f.colaborador ? ` · sobre ${f.colaborador}` : ""}
+                  </p>
+                  <button
+                    onClick={() => toggleAtendido(f)}
+                    className="text-[11px] font-semibold shrink-0"
+                    style={{ color: f.atendido ? "#94A3B8" : BRAND.green }}
+                  >
+                    {f.atendido ? "Reabrir" : "Marcar como atendido"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
    LIDER
    ============================================================ */
 function LiderPanel({ index, onBack, onIndexChange }) {
@@ -2101,6 +2250,97 @@ function SemanaHeader({ semana, procesos, cert }) {
   );
 }
 
+function MejoraComentarios({ rol, semana, colaborador, liderNombre }) {
+  const [comentario, setComentario] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [enviado, setEnviado] = useState(false);
+  const [propios, setPropios] = useState([]);
+  const [abierto, setAbierto] = useState(false);
+
+  useEffect(() => {
+    if (!abierto) return;
+    let active = true;
+    feedbackGetAll().then((list) => {
+      if (active) setPropios(list.filter((f) => f.rol === rol));
+    });
+    return () => {
+      active = false;
+    };
+  }, [abierto, rol]);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!comentario.trim()) return;
+    setEnviando(true);
+    const item = {
+      id: uid(),
+      rol,
+      semana: semana || "",
+      colaborador: colaborador || "",
+      certificador: liderNombre || "",
+      comentario: comentario.trim(),
+      fecha: todayISO(),
+      atendido: false,
+    };
+    const list = await feedbackAdd(item);
+    setPropios(list.filter((f) => f.rol === rol));
+    setComentario("");
+    setEnviando(false);
+    setEnviado(true);
+    setTimeout(() => setEnviado(false), 3000);
+  }
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-4 mt-6">
+      <button onClick={() => setAbierto((v) => !v)} className="w-full flex items-center justify-between gap-2">
+        <span className="flex items-center gap-2 text-sm font-bold text-slate-800" style={{ fontFamily: DISPLAY_FONT }}>
+          <MessageSquareText size={16} style={{ color: BRAND.green }} />
+          Comentarios de mejora para este rol
+        </span>
+        <ChevronRight size={16} className={`text-slate-400 transition-transform ${abierto ? "rotate-90" : ""}`} />
+      </button>
+      {abierto && (
+        <div className="mt-3">
+          <p className="text-xs text-slate-500 mb-3">
+            ¿Algo en el formato o contenido de la certificación de <b>{rol}</b> se podría mejorar? Tu comentario le llega
+            directo al administrador.
+          </p>
+          <form onSubmit={handleSubmit} className="space-y-2">
+            <textarea
+              value={comentario}
+              onChange={(e) => setComentario(e.target.value)}
+              placeholder={`Ej. la actividad de "${semana || "esta semana"}" es confusa, falta un paso, etc.`}
+              rows={2}
+              className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+            />
+            <button
+              type="submit"
+              disabled={enviando || !comentario.trim()}
+              className="px-4 py-2 rounded-lg text-white text-xs font-semibold disabled:opacity-50"
+              style={{ backgroundColor: BRAND.green }}
+            >
+              {enviando ? "Enviando…" : enviado ? "Enviado ✓" : "Enviar comentario"}
+            </button>
+          </form>
+          {propios.length > 0 && (
+            <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Comentarios previos de este rol</p>
+              {propios.map((f) => (
+                <div key={f.id} className="text-xs bg-slate-50 rounded-lg p-2.5">
+                  <p className="text-slate-700">{f.comentario}</p>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    {f.certificador || "Anónimo"} · {fmtDate(f.fecha)} {f.semana ? `· ${f.semana}` : ""}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FillCertView({ id, liderNombre, onBack, onIndexChange }) {
   const [cert, setCert] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -2256,6 +2496,13 @@ function FillCertView({ id, liderNombre, onBack, onIndexChange }) {
             )}
           </div>
         ))}
+
+        <MejoraComentarios
+          rol={cert.rol}
+          semana={hasSemanas ? semanaActual(roleTpl, cert) : ""}
+          colaborador={cert.colaborador}
+          liderNombre={liderNombre}
+        />
       </div>
     </div>
   );
