@@ -109,19 +109,6 @@ function procesoCompleto(cert, proceso) {
   if (!entry || !entry.checks) return false;
   return proceso.actividades.every((_, i) => entry.checks[i]);
 }
-function semanaActual(roleTpl, cert) {
-  const semanas = [];
-  roleTpl.procesos.forEach((p) => {
-    if (p.semana && !semanas.includes(p.semana)) semanas.push(p.semana);
-  });
-  for (const sem of semanas) {
-    const procesosSem = roleTpl.procesos.filter((p) => p.semana === sem);
-    const completos = procesosSem.filter((p) => procesoCompleto(cert, p)).length;
-    if (completos < procesosSem.length) return sem;
-  }
-  return semanas[semanas.length - 1] || "";
-}
-
 /* ---------------- al día / atrasado ----------------
    La certificación está pensada para 4 semanas (~28 días). Comparamos
    el avance real (pct) contra el avance esperado según los días
@@ -2261,12 +2248,12 @@ function MejoraComentarios({ rol, semana, colaborador, liderNombre }) {
     if (!abierto) return;
     let active = true;
     feedbackGetAll().then((list) => {
-      if (active) setPropios(list.filter((f) => f.rol === rol));
+      if (active) setPropios(list.filter((f) => f.rol === rol && (f.semana || "") === (semana || "")));
     });
     return () => {
       active = false;
     };
-  }, [abierto, rol]);
+  }, [abierto, rol, semana]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -2283,7 +2270,7 @@ function MejoraComentarios({ rol, semana, colaborador, liderNombre }) {
       atendido: false,
     };
     const list = await feedbackAdd(item);
-    setPropios(list.filter((f) => f.rol === rol));
+    setPropios(list.filter((f) => f.rol === rol && (f.semana || "") === (semana || "")));
     setComentario("");
     setEnviando(false);
     setEnviado(true);
@@ -2291,19 +2278,19 @@ function MejoraComentarios({ rol, semana, colaborador, liderNombre }) {
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-4 mt-6">
+    <div className="bg-white border border-slate-200 rounded-2xl p-4 mt-3">
       <button onClick={() => setAbierto((v) => !v)} className="w-full flex items-center justify-between gap-2">
         <span className="flex items-center gap-2 text-sm font-bold text-slate-800" style={{ fontFamily: DISPLAY_FONT }}>
           <MessageSquareText size={16} style={{ color: BRAND.green }} />
-          Comentarios de mejora para este rol
+          Comentario de mejora {semana ? `· ${semana}` : ""}
         </span>
         <ChevronRight size={16} className={`text-slate-400 transition-transform ${abierto ? "rotate-90" : ""}`} />
       </button>
       {abierto && (
         <div className="mt-3">
           <p className="text-xs text-slate-500 mb-3">
-            ¿Algo en el formato o contenido de la certificación de <b>{rol}</b> se podría mejorar? Tu comentario le llega
-            directo al administrador.
+            ¿Algo del contenido de {semana ? <><b>{semana}</b> en </> : ""}esta certificación se podría mejorar? Tu comentario
+            le llega directo al administrador.
           </p>
           <form onSubmit={handleSubmit} className="space-y-2">
             <textarea
@@ -2324,12 +2311,12 @@ function MejoraComentarios({ rol, semana, colaborador, liderNombre }) {
           </form>
           {propios.length > 0 && (
             <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Comentarios previos de este rol</p>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Comentarios previos de esta semana</p>
               {propios.map((f) => (
                 <div key={f.id} className="text-xs bg-slate-50 rounded-lg p-2.5">
                   <p className="text-slate-700">{f.comentario}</p>
                   <p className="text-[10px] text-slate-400 mt-1">
-                    {f.certificador || "Anónimo"} · {fmtDate(f.fecha)} {f.semana ? `· ${f.semana}` : ""}
+                    {f.certificador || "Anónimo"} · {fmtDate(f.fecha)}
                   </p>
                 </div>
               ))}
@@ -2485,6 +2472,12 @@ function FillCertView({ id, liderNombre, onBack, onIndexChange }) {
                 />
               ))}
             </div>
+            <MejoraComentarios
+              rol={cert.rol}
+              semana={hasSemanas ? procesos[0].semana : ""}
+              colaborador={cert.colaborador}
+              liderNombre={liderNombre}
+            />
             {hasSemanas && gi < grupos.length - 1 && (
               <div className="flex items-center gap-2 mt-5 px-1">
                 <div className="flex-1 h-px bg-slate-200" />
@@ -2496,13 +2489,6 @@ function FillCertView({ id, liderNombre, onBack, onIndexChange }) {
             )}
           </div>
         ))}
-
-        <MejoraComentarios
-          rol={cert.rol}
-          semana={hasSemanas ? semanaActual(roleTpl, cert) : ""}
-          colaborador={cert.colaborador}
-          liderNombre={liderNombre}
-        />
       </div>
     </div>
   );
