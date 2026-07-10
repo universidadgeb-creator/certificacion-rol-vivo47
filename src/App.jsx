@@ -728,14 +728,15 @@ function AdminPanel({ index, onBack, onRefresh }) {
     return { total, certificadas, enProgreso, sinIniciar };
   }, [index]);
 
+  const [sucursalComparacion, setSucursalComparacion] = useState("");
   const porLiderResponsable = useMemo(
     () =>
       groupStats(
-        index,
+        index.filter((c) => !sucursalComparacion || c.sucursal === sucursalComparacion),
         (c) => (c.liderResponsable && c.liderResponsable.trim() ? normaliza(c.liderResponsable.trim()) : null),
         (c) => c.liderResponsable.trim()
       ),
-    [index]
+    [index, sucursalComparacion]
   );
 
   if (showTemplates) {
@@ -813,7 +814,7 @@ function AdminPanel({ index, onBack, onRefresh }) {
           <StatCard label="Sin iniciar" value={stats.sinIniciar} color="#B0483F" />
         </div>
 
-        <div className="flex items-center justify-between gap-2 mb-3 px-1">
+        <div className="flex items-center justify-between gap-2 mb-3 px-1 flex-wrap">
           <div className="flex items-center gap-1.5">
             <Users size={14} className="text-slate-400" />
             <span className="text-xs font-bold uppercase tracking-wide text-slate-400">Comparar líderes responsables</span>
@@ -825,6 +826,14 @@ function AdminPanel({ index, onBack, onRefresh }) {
           >
             Ver analítica completa
           </button>
+        </div>
+        <div className="mb-3">
+          <FiltroSelect
+            value={sucursalComparacion}
+            onChange={setSucursalComparacion}
+            placeholder="Todas las sucursales"
+            options={SUCURSALES}
+          />
         </div>
         <div className="mb-6">
           <GroupStatsTable rows={porLiderResponsable} />
@@ -1829,23 +1838,29 @@ function GroupStatsTable({ rows }) {
 
 function AnalyticsPanel({ index, onBack }) {
   const [dimension, setDimension] = useState("sucursal");
+  const [sucursalFiltro, setSucursalFiltro] = useState("");
+
+  const indexFiltrado = useMemo(
+    () => index.filter((c) => !sucursalFiltro || c.sucursal === sucursalFiltro),
+    [index, sucursalFiltro]
+  );
 
   const grouped = useMemo(() => {
-    if (dimension === "sucursal") return groupStats(index, (c) => c.sucursal, (c) => c.sucursal);
-    if (dimension === "departamento") return groupStats(index, (c) => c.departamento, (c) => c.departamento);
-    if (dimension === "rol") return groupStats(index, (c) => c.rol, (c) => c.rol);
+    if (dimension === "sucursal") return groupStats(indexFiltrado, (c) => c.sucursal, (c) => c.sucursal);
+    if (dimension === "departamento") return groupStats(indexFiltrado, (c) => c.departamento, (c) => c.departamento);
+    if (dimension === "rol") return groupStats(indexFiltrado, (c) => c.rol, (c) => c.rol);
     if (dimension === "liderResponsable")
       return groupStats(
-        index,
+        indexFiltrado,
         (c) => (c.liderResponsable && c.liderResponsable.trim() ? normaliza(c.liderResponsable.trim()) : null),
         (c) => c.liderResponsable.trim()
       );
     return groupStats(
-      index,
+      indexFiltrado,
       (c) => (c.lider && c.lider.trim() ? normaliza(c.lider.trim()) : null),
       (c) => c.lider.trim()
     );
-  }, [index, dimension]);
+  }, [indexFiltrado, dimension]);
 
   const tiempos = useMemo(() => {
     const completados = index.filter((c) => c.estado === "certificado" && c.fechaCertificado && c.fechaInicio);
@@ -1937,6 +1952,16 @@ function AnalyticsPanel({ index, onBack }) {
             </button>
           ))}
         </div>
+        {dimension !== "sucursal" && (
+          <div className="mb-4">
+            <FiltroSelect
+              value={sucursalFiltro}
+              onChange={setSucursalFiltro}
+              placeholder="Todas las sucursales"
+              options={SUCURSALES}
+            />
+          </div>
+        )}
         <GroupStatsTable rows={grouped} />
 
         <div className="flex items-center gap-1.5 mb-3 px-1 mt-8">
