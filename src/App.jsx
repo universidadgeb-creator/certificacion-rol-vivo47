@@ -728,12 +728,12 @@ function AdminPanel({ index, onBack, onRefresh }) {
     return { total, certificadas, enProgreso, sinIniciar };
   }, [index]);
 
-  const porCertificador = useMemo(
+  const porLiderResponsable = useMemo(
     () =>
       groupStats(
         index,
-        (c) => (c.lider && c.lider.trim() ? normaliza(c.lider.trim()) : null),
-        (c) => c.lider.trim()
+        (c) => (c.liderResponsable && c.liderResponsable.trim() ? normaliza(c.liderResponsable.trim()) : null),
+        (c) => c.liderResponsable.trim()
       ),
     [index]
   );
@@ -816,7 +816,7 @@ function AdminPanel({ index, onBack, onRefresh }) {
         <div className="flex items-center justify-between gap-2 mb-3 px-1">
           <div className="flex items-center gap-1.5">
             <Users size={14} className="text-slate-400" />
-            <span className="text-xs font-bold uppercase tracking-wide text-slate-400">Comparar certificadores</span>
+            <span className="text-xs font-bold uppercase tracking-wide text-slate-400">Comparar líderes responsables</span>
           </div>
           <button
             onClick={() => setShowAnalytics(true)}
@@ -827,7 +827,7 @@ function AdminPanel({ index, onBack, onRefresh }) {
           </button>
         </div>
         <div className="mb-6">
-          <GroupStatsTable rows={porCertificador} />
+          <GroupStatsTable rows={porLiderResponsable} />
         </div>
 
         <div className="flex flex-wrap gap-2 mb-4">
@@ -914,6 +914,7 @@ function NewCertModal({ onClose, onCreated }) {
   const [sucursal, setSucursal] = useState("");
   const [lider, setLider] = useState("");
   const [certificadorEmail, setCertificadorEmail] = useState("");
+  const [liderResponsable, setLiderResponsable] = useState("");
   const [fecha, setFecha] = useState(todayISO());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -938,6 +939,7 @@ function NewCertModal({ onClose, onCreated }) {
       sucursal,
       lider: lider.trim(),
       certificadorEmail: certificadorEmail.trim(),
+      liderResponsable: liderResponsable.trim(),
       fechaInicio: fecha,
       creadoEn: nowIso,
       checklist: {},
@@ -954,6 +956,7 @@ function NewCertModal({ onClose, onCreated }) {
       sucursal,
       lider: cert.lider,
       certificadorEmail: cert.certificadorEmail,
+      liderResponsable: cert.liderResponsable,
       fechaInicio: fecha,
       estado: "sin_iniciar",
       pct: 0,
@@ -1069,6 +1072,14 @@ function NewCertModal({ onClose, onCreated }) {
               className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
             />
           </Field>
+          <Field label="Líder responsable (opcional)">
+            <input
+              value={liderResponsable}
+              onChange={(e) => setLiderResponsable(e.target.value)}
+              placeholder="Quién responde por este colaborador"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+            />
+          </Field>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button
             type="submit"
@@ -1093,6 +1104,7 @@ function EditCertModal({ cert, onClose, onSaved }) {
   const [sucursal, setSucursal] = useState(cert.sucursal);
   const [lider, setLider] = useState(cert.lider || "");
   const [certificadorEmail, setCertificadorEmail] = useState(cert.certificadorEmail || "");
+  const [liderResponsable, setLiderResponsable] = useState(cert.liderResponsable || "");
   const [fecha, setFecha] = useState(cert.fechaInicio || todayISO());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -1116,6 +1128,7 @@ function EditCertModal({ cert, onClose, onSaved }) {
       sucursal,
       lider: lider.trim(),
       certificadorEmail: certificadorEmail.trim(),
+      liderResponsable: liderResponsable.trim(),
       fechaInicio: fecha,
       ...(rolChanged ? { checklist: {}, autoeval: { confianza: {}, reflexion: {} } } : {}),
     };
@@ -1133,6 +1146,7 @@ function EditCertModal({ cert, onClose, onSaved }) {
         sucursal,
         lider: updatedCert.lider,
         certificadorEmail: updatedCert.certificadorEmail,
+        liderResponsable: updatedCert.liderResponsable,
         fechaInicio: fecha,
         estado,
         pct,
@@ -1254,6 +1268,14 @@ function EditCertModal({ cert, onClose, onSaved }) {
               className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
             />
           </Field>
+          <Field label="Líder responsable (opcional)">
+            <input
+              value={liderResponsable}
+              onChange={(e) => setLiderResponsable(e.target.value)}
+              placeholder="Quién responde por este colaborador"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+            />
+          </Field>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button
             type="submit"
@@ -1331,6 +1353,9 @@ function AdminCertDetail({ id, onBack, onDeleted, onUpdated }) {
             <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-slate-500">
               <span className="flex items-center gap-1">
                 <Users size={12} /> Certificador: <b className="text-slate-700">{cert.lider || "—"}</b>
+              </span>
+              <span className="flex items-center gap-1">
+                <Users size={12} /> Líder responsable: <b className="text-slate-700">{cert.liderResponsable || "—"}</b>
               </span>
               <span className="flex items-center gap-1">
                 <Calendar size={12} /> Inicio: <b className="text-slate-700">{fmtDate(cert.fechaInicio)}</b>
@@ -1741,7 +1766,7 @@ function csvEscape(v) {
 
 function exportIndexToCsv(index) {
   const headers = [
-    "Colaborador", "Rol", "Departamento", "Sucursal", "Certificador", "Estado",
+    "Colaborador", "Rol", "Departamento", "Sucursal", "Certificador", "Líder responsable", "Estado",
     "Avance %", "Fecha inicio", "Fecha certificado", "Última actualización",
   ];
   const rows = index.map((c) => [
@@ -1750,6 +1775,7 @@ function exportIndexToCsv(index) {
     c.departamento,
     c.sucursal,
     c.lider || "",
+    c.liderResponsable || "",
     ESTADO_LABEL[c.estado] || c.estado,
     c.pct ?? 0,
     fmtDate(c.fechaInicio),
@@ -1808,6 +1834,12 @@ function AnalyticsPanel({ index, onBack }) {
     if (dimension === "sucursal") return groupStats(index, (c) => c.sucursal, (c) => c.sucursal);
     if (dimension === "departamento") return groupStats(index, (c) => c.departamento, (c) => c.departamento);
     if (dimension === "rol") return groupStats(index, (c) => c.rol, (c) => c.rol);
+    if (dimension === "liderResponsable")
+      return groupStats(
+        index,
+        (c) => (c.liderResponsable && c.liderResponsable.trim() ? normaliza(c.liderResponsable.trim()) : null),
+        (c) => c.liderResponsable.trim()
+      );
     return groupStats(
       index,
       (c) => (c.lider && c.lider.trim() ? normaliza(c.lider.trim()) : null),
@@ -1890,6 +1922,7 @@ function AnalyticsPanel({ index, onBack }) {
             ["sucursal", "Sucursal"],
             ["departamento", "Departamento"],
             ["rol", "Rol"],
+            ["liderResponsable", "Líder responsable"],
             ["lider", "Certificador"],
           ].map(([v, label]) => (
             <button
