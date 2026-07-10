@@ -728,6 +728,16 @@ function AdminPanel({ index, onBack, onRefresh }) {
     return { total, certificadas, enProgreso, sinIniciar };
   }, [index]);
 
+  const porCertificador = useMemo(
+    () =>
+      groupStats(
+        index,
+        (c) => (c.lider && c.lider.trim() ? normaliza(c.lider.trim()) : null),
+        (c) => c.lider.trim()
+      ),
+    [index]
+  );
+
   if (showTemplates) {
     return <RoleTemplatesPanel onBack={() => setShowTemplates(false)} />;
   }
@@ -801,6 +811,23 @@ function AdminPanel({ index, onBack, onRefresh }) {
           <StatCard label="Certificadas" value={stats.certificadas} color={BRAND.green} />
           <StatCard label="En progreso" value={stats.enProgreso} color="#C98A1B" />
           <StatCard label="Sin iniciar" value={stats.sinIniciar} color="#B0483F" />
+        </div>
+
+        <div className="flex items-center justify-between gap-2 mb-3 px-1">
+          <div className="flex items-center gap-1.5">
+            <Users size={14} className="text-slate-400" />
+            <span className="text-xs font-bold uppercase tracking-wide text-slate-400">Comparar certificadores</span>
+          </div>
+          <button
+            onClick={() => setShowAnalytics(true)}
+            className="text-xs font-semibold shrink-0"
+            style={{ color: BRAND.green }}
+          >
+            Ver analítica completa
+          </button>
+        </div>
+        <div className="mb-6">
+          <GroupStatsTable rows={porCertificador} />
         </div>
 
         <div className="flex flex-wrap gap-2 mb-4">
