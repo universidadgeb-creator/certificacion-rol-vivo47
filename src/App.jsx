@@ -655,7 +655,7 @@ function Landing({ onSelect }) {
         </p>
       </div>
 
-      <div className="max-w-3xl mx-auto px-6 pb-16 grid gap-4 sm:grid-cols-3">
+      <div className="max-w-4xl mx-auto px-6 pb-16 grid gap-4 grid-cols-2 lg:grid-cols-4">
         <RoleCard
           icon={Building2}
           title="Administrador"
@@ -673,6 +673,12 @@ function Landing({ onSelect }) {
           title="Colaborador"
           desc="Consulta tu avance y responde tu autoevaluación."
           onClick={() => onSelect("colaborador")}
+        />
+        <RoleCard
+          icon={BarChart3}
+          title="Gerente"
+          desc="Consulta el % de cumplimiento de tu sucursal."
+          onClick={() => onSelect("gerente")}
         />
       </div>
     </div>
@@ -2108,6 +2114,226 @@ function FeedbackPanel({ onBack }) {
 }
 
 /* ============================================================
+   GERENTE (solo lectura, por sucursal)
+   ============================================================ */
+const GERENTE_SUCURSALES = ["Naciones Unidas", "Valle Real", "Gourmetería"];
+
+function GerenteCertDetail({ id, onBack }) {
+  const [cert, setCert] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    storageGetCert(id).then((c) => {
+      if (active) {
+        setCert(c);
+        setLoading(false);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
+  if (loading) return <LoadingScreen />;
+  const roleTpl = cert ? CERT_DATA.roles[cert.rol] : null;
+  if (!cert || !roleTpl)
+    return (
+      <EmptyState
+        icon={Info}
+        title="No se encontró la certificación"
+        subtitle="Es posible que haya sido eliminada."
+        action={
+          <button onClick={onBack} className="text-sm font-semibold" style={{ color: BRAND.green }}>
+            Volver
+          </button>
+        }
+      />
+    );
+
+  const { pct, estado } = computeStatus(cert, roleTpl);
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <TopBar
+        title={cert.colaborador}
+        subtitle={`${cert.rol} · ${cert.departamento}`}
+        onBack={onBack}
+        right={<EstadoBadge estado={estado} pct={pct} />}
+      />
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 mb-5">
+          <RutaSemanas roleTpl={roleTpl} cert={cert} />
+          <ProgressBar pct={pct} />
+          <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3 text-xs text-slate-500">
+            <span className="flex items-center gap-1">
+              <Users size={12} /> Certificador: <b className="text-slate-700">{cert.lider || "—"}</b>
+            </span>
+            <span className="flex items-center gap-1">
+              <Users size={12} /> Líder responsable: <b className="text-slate-700">{cert.liderResponsable || "—"}</b>
+            </span>
+            <span className="flex items-center gap-1">
+              <Calendar size={12} /> Inicio: <b className="text-slate-700">{fmtDate(cert.fechaInicio)}</b>
+            </span>
+          </div>
+        </div>
+        <ChecklistReadOnly roleTpl={roleTpl} cert={cert} />
+        <AutoevalSummary cert={cert} />
+      </div>
+    </div>
+  );
+}
+
+function GerentePanel({ index, onBack }) {
+  const [sucursal, setSucursal] = useState("");
+  const [detailId, setDetailId] = useState(null);
+  const [filtros, setFiltros] = useState({ depto: "", rol: "", estado: "" });
+
+  const deSucursal = useMemo(() => index.filter((c) => c.sucursal === sucursal), [index, sucursal]);
+
+  const stats = useMemo(() => {
+    const total = deSucursal.length;
+    const certificadas = deSucursal.filter((c) => c.estado === "certificado").length;
+    const enProgreso = deSucursal.filter((c) => c.estado === "en_progreso").length;
+    const sinIniciar = deSucursal.filter((c) => c.estado === "sin_iniciar").length;
+    const atrasados = deSucursal.filter((c) => estaAtrasado(c)).length;
+    const pctSum = deSucursal.reduce((s, c) => s + (c.pct || 0), 0);
+    const avgPct = total ? Math.round(pctSum / total) : 0;
+    return { total, certificadas, enProgreso, sinIniciar, atrasados, avgPct };
+  }, [deSucursal]);
+
+  const porRol = useMemo(() => groupStats(deSucursal, (c) => c.rol, (c) => c.rol), [deSucursal]);
+
+  const filtered = useMemo(() => {
+    return deSucursal
+      .filter(
+        (c) =>
+          (!filtros.depto || c.departamento === filtros.depto) &&
+          (!filtros.rol || c.rol === filtros.rol) &&
+          (!filtros.estado || c.estado === filtros.estado)
+      )
+      .sort((a, b) => (b.actualizadoEn || "").localeCompare(a.actualizadoEn || ""));
+  }, [deSucursal, filtros]);
+
+  if (!sucursal) {
+    return (
+      <div className="min-h-screen flex flex-col bg-slate-50">
+        <TopBar title="Certificación de Rol" onBack={onBack} />
+        <div className="flex-1 flex items-center justify-center px-6">
+          <div className="w-full max-w-sm text-center">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4 mx-auto" style={{ backgroundColor: BRAND.greenSoft }}>
+              <BarChart3 size={26} style={{ color: BRAND.green }} />
+            </div>
+            <h2 className="text-xl font-bold text-slate-800 mb-1" style={{ fontFamily: DISPLAY_FONT }}>
+              ¿Cuál es tu sucursal?
+            </h2>
+            <p className="text-sm text-slate-500 mb-5">Elige tu sucursal para ver su avance de certificación.</p>
+            <div className="space-y-2">
+              {GERENTE_SUCURSALES.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setSucursal(s)}
+                  className="w-full py-3.5 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:border-slate-300 hover:shadow-sm transition flex items-center justify-between px-4"
+                >
+                  {s}
+                  <ChevronRight size={16} className="text-slate-400" />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (detailId) {
+    return <GerenteCertDetail id={detailId} onBack={() => setDetailId(null)} />;
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <TopBar
+        title={sucursal}
+        subtitle="Avance de certificación de rol"
+        onBack={onBack}
+        right={
+          <button onClick={() => setSucursal("")} className="text-xs font-semibold text-slate-500 hover:text-slate-700 shrink-0">
+            Cambiar sucursal
+          </button>
+        }
+      />
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+        <div className="flex items-center gap-1.5 mb-3 px-1">
+          <BarChart3 size={14} className="text-slate-400" />
+          <span className="text-xs font-bold uppercase tracking-wide text-slate-400">Resumen</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+          <StatCard label="% de cumplimiento" value={`${stats.avgPct}%`} color={BRAND.green} />
+          <StatCard label="Total colaboradores" value={stats.total} />
+          <StatCard label="Atrasados" value={stats.atrasados} color="#B0483F" />
+        </div>
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          <StatCard label="Certificados" value={stats.certificadas} color={BRAND.green} />
+          <StatCard label="En progreso" value={stats.enProgreso} color="#C98A1B" />
+          <StatCard label="Sin iniciar" value={stats.sinIniciar} color="#B0483F" />
+        </div>
+
+        <div className="flex items-center gap-1.5 mb-3 px-1">
+          <ClipboardList size={14} className="text-slate-400" />
+          <span className="text-xs font-bold uppercase tracking-wide text-slate-400">Avance por rol</span>
+        </div>
+        <div className="mb-6">
+          <GroupStatsTable rows={porRol} />
+        </div>
+
+        <div className="flex items-center gap-1.5 mb-3 px-1">
+          <Users size={14} className="text-slate-400" />
+          <span className="text-xs font-bold uppercase tracking-wide text-slate-400">Colaboradores</span>
+        </div>
+        <div className="flex flex-wrap gap-2 mb-4">
+          <FiltroSelect
+            value={filtros.depto}
+            onChange={(v) => setFiltros((f) => ({ ...f, depto: v, rol: "" }))}
+            placeholder="Departamento"
+            options={Object.keys(CERT_DATA.departamentos)}
+          />
+          <FiltroSelect
+            value={filtros.rol}
+            onChange={(v) => setFiltros((f) => ({ ...f, rol: v }))}
+            placeholder="Rol"
+            options={filtros.depto ? CERT_DATA.departamentos[filtros.depto] : Object.keys(CERT_DATA.roles)}
+          />
+          <FiltroSelect
+            value={filtros.estado}
+            onChange={(v) => setFiltros((f) => ({ ...f, estado: v }))}
+            placeholder="Estado"
+            options={[
+              ["sin_iniciar", "Sin iniciar"],
+              ["en_progreso", "En progreso"],
+              ["certificado", "Certificado"],
+            ]}
+            labeled
+          />
+        </div>
+        {filtered.length === 0 ? (
+          <EmptyState
+            icon={ClipboardList}
+            title={deSucursal.length === 0 ? "Aún no hay certificaciones en esta sucursal" : "Sin resultados"}
+            subtitle={deSucursal.length === 0 ? "" : "Ajusta los filtros para ver más resultados."}
+          />
+        ) : (
+          <div className="space-y-2">
+            {filtered.map((c) => (
+              <CertRow key={c.id} c={c} onClick={() => setDetailId(c.id)} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
    LIDER
    ============================================================ */
 function LiderPanel({ index, onBack, onIndexChange }) {
@@ -2845,6 +3071,7 @@ export default function App() {
       )}
       {view === "lider" && <LiderPanel index={index} onBack={() => setView("landing")} onIndexChange={setIndex} />}
       {view === "colaborador" && <ColaboradorPanel index={index} onBack={() => setView("landing")} onIndexChange={setIndex} />}
+      {view === "gerente" && <GerentePanel index={index} onBack={() => setView("landing")} />}
     </div>
   );
 }
